@@ -45,7 +45,9 @@ class PostTests(TestCase):
                                                       self.post.pk}),
             'posts/create_post.html':
                 reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
+
         }
+
         for template, reverse_name in templates_page_names.items():
             with self.subTest(template=template):
                 response = self.authorized_client.get(reverse_name)
