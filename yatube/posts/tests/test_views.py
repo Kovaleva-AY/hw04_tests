@@ -43,16 +43,17 @@ class PostTests(TestCase):
             'posts/post_detail.html': reverse('posts:post_detail',
                                               kwargs={'post_id':
                                                       self.post.pk}),
-            'posts/create_post.html': reverse('posts:post_create'),
             'posts/create_post.html':
                 reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
-
-
         }
         for template, reverse_name in templates_page_names.items():
             with self.subTest(template=template):
                 response = self.authorized_client.get(reverse_name)
                 self.assertTemplateUsed(response, template)
+
+    def test_post_create_correct_template(self):
+        response = self.authorized_client.get(reverse('posts:post_create'))
+        self.assertTemplateUsed(response, 'posts/create_post.html')
 
 
 def test_index_correct_context(self):
