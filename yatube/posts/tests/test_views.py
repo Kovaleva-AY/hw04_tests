@@ -83,12 +83,12 @@ class PostTests(TestCase):
         first_object = response.context['page_obj'][0]
         post_text_0 = first_object.text
         self.assertEqual(response.context['author'].username, 'auth')
-        self.assertEqual(post_text_0, 'Тестовая запись для создания поста')
+        self.assertEqual(post_text_0, 'Тестовая запись 2 для создания поста')
 
 
     def test_post_detail_correct_context(self):
         response = self.authorized_client.get(reverse('posts:post_detail',kwargs={'post_id': self.post.pk}))
-        first_object = response.context['page_obj'][0]
+        first_object = response.context['author_total_posts'][0]
         post_text_0 = first_object.text
         self.assertEqual(response.context['id'].post_id, 'self.post.pk')
         self.assertEqual(post_text_0, 'Тестовая запись для создания поста')
