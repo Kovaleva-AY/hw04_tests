@@ -19,8 +19,8 @@ class PostTests(TestCase):
             group=Group.objects.create(
                 title='Заголовок для тестовой группы',
                 slug='slug'))
-        
-        cls.post = Post.objects.create(
+
+        cls.postTwo = Post.objects.create(
             author=cls.user,
             text='Тестовая запись 2 для создания поста',
             group=Group.objects.create(
@@ -57,42 +57,39 @@ class PostTests(TestCase):
         response = self.authorized_client.get(reverse('posts:post_create'))
         self.assertTemplateUsed(response, 'posts/create_post.html')
 
-
     def test_index_correct_context(self):
         response = self.authorized_client.get(reverse('posts:index'))
         first_object = response.context['page_obj'][0]
         post_text_0 = first_object.text
         post_author_0 = first_object.author.username
         post_group_0 = first_object.group.title
-        self.assertEqual(post_text_0,'Тестовая запись 2 для создания поста')
+        self.assertEqual(post_text_0, 'Тестовая запись 2 для создания поста')
         self.assertEqual(post_author_0, 'auth')
         self.assertEqual(post_group_0, 'Заголовок 2 для тестовой группы')
 
-
     def test_group_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:group_posts',kwargs={'slug': 'slug'}))
+        response = self.authorized_client.get(reverse('posts:group_posts',
+                                              kwargs={'slug': 'slug'}))
         first_object = response.context['group']
         group_title_0 = first_object.title
         group_slug_0 = first_object.slug
         self.assertEqual(group_title_0, 'Заголовок для тестовой группы')
         self.assertEqual(group_slug_0, 'slug')
 
-
     def test_profile_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:profile', kwargs={'username': 'auth'}))
+        response = self.authorized_client.get(reverse('posts:profile',
+                                              kwargs={'username': 'auth'}))
         first_object = response.context['page_obj'][0]
         post_text_0 = first_object.text
         self.assertEqual(response.context['author'].username, 'auth')
         self.assertEqual(post_text_0, 'Тестовая запись 2 для создания поста')
 
-
     def test_post_detail_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:post_detail',kwargs={'post_id': self.post.pk}))
-        first_object = response.context['author_total_posts'][0]
-        post_text_0 = first_object.text
-        self.assertEqual(response.context['id'].post_id, 'self.post.pk')
-        self.assertEqual(post_text_0, 'Тестовая запись для создания поста')
-
+        response = self.authorized_client.get(reverse('posts:post_detail',
+                                              kwargs={'post_id':
+                                                      self.post.pk}))
+        self.assertEqual(response.context['title'],
+                         'Пост: Тестовая запись для создания п')
 
     def test_create_post_correct_context(self):
         response = self.authorized_client.get(reverse('posts:post_create'))
@@ -104,9 +101,10 @@ class PostTests(TestCase):
                 form_field = response.context['form'].fields[value]
                 self.assertIsInstance(form_field, expected)
 
-
     def test_post_edit_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:post_edit',kwargs={'post_id': self.post.pk}))
+        response = self.authorized_client.get(reverse('posts:post_edit',
+                                                      kwargs={'post_id':
+                                                              self.post.pk}))
         form_fields = {
             'group': forms.fields.ChoiceField,
         }
@@ -115,9 +113,9 @@ class PostTests(TestCase):
                 form_field = response.context['form'].fields[value]
                 self.assertIsInstance(form_field, expected)
 
-
     def test_post_another_group(self):
-        response = self.authorized_client.get(reverse('posts:group_posts', kwargs={'slug': 'slug'}))
+        response = self.authorized_client.get(reverse('posts:group_posts',
+                                                      kwargs={'slug': 'slug'}))
         first_object = response.context['page_obj'][0]
         post_text_0 = first_object.text
         self.assertTrue(post_text_0, 'Заголовок 2 для тестовой группы')
