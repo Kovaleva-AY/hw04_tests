@@ -46,5 +46,5 @@ class Post(models.Model):
 
     def save(self, *args, **kwargs):
         if not self:
-            self = slugify(self.text)[:100]
+            self = slugify(self.text)[:15]
         super().save(*args, **kwargs)
