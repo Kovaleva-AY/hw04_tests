@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -20,6 +21,10 @@ class PostCreateFormTests(TestCase):
         self.user = User.objects.create_user(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
+        form_data = {
+            'text': 'Данные из формы',
+            'group': self.group.pk
+        }
         self.authorized_client.post(
             reverse('posts:post_create'),
             data=form_data,
@@ -45,7 +50,6 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(Post.objects.count(), count_posts + 1)
         self.assertRedirects(response, reverse('posts:profile',
                              kwargs={'username': 'auth'}))
-        
         self.assertEqual(self.user.username, 'auth')
         self.assertEqual(self.group.title, 'Заголовок для тестовой группы')
 
@@ -59,22 +63,17 @@ class PostCreateFormTests(TestCase):
             data=form_data,
             follow=True,
         )
-        self.assertFalse(Post.objects.filter(
-                         text='Данные из формы'
-                         ).exists())
+        self.assertTrue(Post.objects.filter(
+                        text='Данные из формы'
+                        ).exists())
 
     def test_edit_post(self):
-        form_data = {
-            'text': 'Данные из формы',
-            'group': self.group.pk
-        }
-        self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True,
-        )
-        post_2 = Post.objects.get(id=self.group.pk)
-        self.client.get(f'/posts/{post_2.id}/edit/')
+        self.assertTrue(Post.objects.filter(
+                        text='Данные из формы',
+                        group=self.group.pk,
+                        author=self.user
+                        ).exists())
+        self.client.get(f'/posts/{self.group.pk}/edit/')
         form_data = {
             'text': 'Измененный текст',
             'group': self.group.pk
@@ -82,11 +81,39 @@ class PostCreateFormTests(TestCase):
         response_edit = self.authorized_client.post(
             reverse('posts:post_edit',
                     kwargs={
-                        'post_id': post_2.id
+                        'post_id': self.group.pk
                     }),
             data=form_data,
             follow=True,
         )
-        post_2 = Post.objects.get(id=self.group.pk)
+        post_2 = Post.objects.get(id=self.group.id)
         self.assertEqual(response_edit.status_code, 200)
         self.assertEqual(post_2.text, 'Измененный текст')
+   
+    def test_reddirect_guest_client(self):
+        '''Проверка редиректа неавторизованного пользователя'''
+        self.post = Post.objects.create(text='Тестовый текст',
+                                        author=self.user,
+                                        group=self.group)
+        form_data = {'text': 'Текст записанный в форму'}
+        response = self.guest_client.post(
+            reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
+            data=form_data,
+            follow=True)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertRedirects(response,
+                             f'/auth/login/?next=/posts/{self.post.id}/edit/')
+
+    def test_no_edit_post(self):
+        '''Проверка запрета редактирования не авторизованного пользователя'''
+        posts_count = Post.objects.count()
+        form_data = {'text': 'Текст записанный в форму',
+                     'group': self.group.id}
+        response = self.guest_client.post(reverse('posts:post_create'),
+                                          data=form_data,
+                                          follow=True)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        error_name2 = 'Поcт добавлен в базу данных по ошибке'
+        self.assertNotEqual(Post.objects.count(),
+                            posts_count + 1,
+                            error_name2)

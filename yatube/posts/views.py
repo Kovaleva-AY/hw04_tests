@@ -44,12 +44,11 @@ def profile(request, username):
 def post_detail(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     author_total_posts = Post.objects.filter(author_id=post.author.pk).count()
-    title = 'Пост: ' + post.text[:SHORT_TEXT]
+    post1 = post.text
     context = {
         'post': post,
         'author_total_posts': author_total_posts,
-        'title': title
-
+        'post1': post1
     }
     return render(request, 'posts/post_detail.html', context)
 

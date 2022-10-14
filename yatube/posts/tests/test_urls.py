@@ -25,18 +25,15 @@ class PostURLTests(TestCase):
 
     def setUp(self):
         self.guest_client = Client()
-        self.user = User.objects.get(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
 
     def test_public_pages(self):
-        postURLTests = PostURLTests()
-        postid = postURLTests.post.pk
         url_names = [
             '/',
             '/group/slug/',
             '/profile/auth/',
-            '/posts/' + str(postid) + '/',
+            f'/posts/{str(self.post.pk)}/',
 
         ]
         for adress in url_names:
@@ -53,14 +50,12 @@ class PostURLTests(TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_urls_uses_correct_template(self):
-        postURLTests = PostURLTests()
-        postid = postURLTests.post.pk
         templates_url_names = {
             'posts/index.html': '/',
             'posts/group_list.html': '/group/slug/',
             'posts/create_post.html': '/create/',
             'posts/profile.html': '/profile/auth/',
-            'posts/post_detail.html': '/posts/' + str(postid) + '/',
+            'posts/post_detail.html': f'/posts/{str(self.post.pk)}/',
 
         }
         for template, url in templates_url_names.items():
@@ -70,4 +65,7 @@ class PostURLTests(TestCase):
 
     def test_page_404(self):
         response = self.guest_client.get('/unexisting_page/')
+        response = self.guest_client.get(f'/posts/{str(555)}/')
+        response = self.guest_client.get('/group/meow/')
+        response = self.guest_client.get('/profile/anton/')
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)

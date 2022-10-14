@@ -29,7 +29,6 @@ class PostTests(TestCase):
 
     def setUp(self):
         self.guest_client = Client()
-        self.user = User.objects.get(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
 
@@ -58,38 +57,30 @@ class PostTests(TestCase):
         self.assertTemplateUsed(response, 'posts/create_post.html')
 
     def test_index_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:index'))
-        first_object = response.context['page_obj'][0]
-        post_text_0 = first_object.text
-        post_author_0 = first_object.author.username
-        post_group_0 = first_object.group.title
-        self.assertEqual(post_text_0, 'Тестовая запись 2 для создания поста')
-        self.assertEqual(post_author_0, 'auth')
-        self.assertEqual(post_group_0, 'Заголовок 2 для тестовой группы')
+        self.authorized_client.get(reverse('posts:index')).context['page_obj'][0]
+        self.assertEqual(self.postTwo.text, 'Тестовая запись 2 для создания поста')
+        self.assertEqual(self.postTwo.author.username, 'auth')
+        self.assertEqual(self.postTwo.group.title, 'Заголовок 2 для тестовой группы')
 
     def test_group_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:group_posts',
-                                              kwargs={'slug': 'slug'}))
-        first_object = response.context['group']
-        group_title_0 = first_object.title
-        group_slug_0 = first_object.slug
-        self.assertEqual(group_title_0, 'Заголовок для тестовой группы')
-        self.assertEqual(group_slug_0, 'slug')
+        self.authorized_client.get(reverse('posts:group_posts',
+                                              kwargs={'slug': 'slug'})).context['group']
+        self.assertEqual(self.post.group.title, 'Заголовок для тестовой группы')
+        self.assertEqual(self.post.group.slug, 'slug')
 
     def test_profile_correct_context(self):
         response = self.authorized_client.get(reverse('posts:profile',
-                                              kwargs={'username': 'auth'}))
+                                              kwargs={'username':
+                            f'{self.user.username}'}))
         first_object = response.context['page_obj'][0]
-        post_text_0 = first_object.text
-        self.assertEqual(response.context['author'].username, 'auth')
-        self.assertEqual(post_text_0, 'Тестовая запись 2 для создания поста')
+        self.assertEqual(response.context['author'].username,  f'{self.user}')
+        self.assertEqual(first_object.text, 'Тестовая запись 2 для создания поста')
 
     def test_post_detail_correct_context(self):
         response = self.authorized_client.get(reverse('posts:post_detail',
                                               kwargs={'post_id':
                                                       self.post.pk}))
-        self.assertEqual(response.context['title'],
-                         'Пост: Тестовая запись для создания п')
+        self.assertEqual(response.context['post1'], self.post.text)
 
     def test_create_post_correct_context(self):
         response = self.authorized_client.get(reverse('posts:post_create'))
@@ -114,11 +105,10 @@ class PostTests(TestCase):
                 self.assertIsInstance(form_field, expected)
 
     def test_post_another_group(self):
-        response = self.authorized_client.get(reverse('posts:group_posts',
-                                                      kwargs={'slug': 'slug'}))
-        first_object = response.context['page_obj'][0]
-        post_text_0 = first_object.text
-        self.assertTrue(post_text_0, 'Заголовок 2 для тестовой группы')
+        self.authorized_client.get(reverse('posts:group_posts',
+                                                      kwargs={'slug': 'slug'})).context['page_obj'][0]
+        
+        self.assertTrue(self.postTwo.text, 'Заголовок 2 для тестовой группы')
 
 
 class PaginatorViewsTest(TestCase):
@@ -143,9 +133,9 @@ class PaginatorViewsTest(TestCase):
 
     def setUp(self):
         self.guest_client = Client()
-        self.user = User.objects.get(username='auth')
+        
         self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
+        
 
     def test_first_page_contains_ten_posts(self):
         list_urls = {
