@@ -89,9 +89,8 @@ class PostCreateFormTests(TestCase):
         post_2 = Post.objects.get(id=self.group.id)
         self.assertEqual(response_edit.status_code, 200)
         self.assertEqual(post_2.text, 'Измененный текст')
-   
+
     def test_reddirect_guest_client(self):
-        '''Проверка редиректа неавторизованного пользователя'''
         self.post = Post.objects.create(text='Тестовый текст',
                                         author=self.user,
                                         group=self.group)
@@ -105,7 +104,6 @@ class PostCreateFormTests(TestCase):
                              f'/auth/login/?next=/posts/{self.post.id}/edit/')
 
     def test_no_edit_post(self):
-        '''Проверка запрета редактирования не авторизованного пользователя'''
         posts_count = Post.objects.count()
         form_data = {'text': 'Текст записанный в форму',
                      'group': self.group.id}
