@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 from ..models import Group, Post
+from ..forms import PostForm
+from django.urls import reverse
 User = get_user_model()
 
 
@@ -10,26 +12,30 @@ class PostCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.post = Post.objects.create(
+            author=User.objects.create_user(username='test_name1'),
+            text='Тестовая запись для создания 1 поста',
+            group=Group.objects.create(
+                title='Заголовок для 1 тестовой группы',
+                slug='test_slug1'))
         cls.group = Group.objects.create(
             title=('Заголовок для тестовой группы'),
             slug='slug',
             description='Тестовое описание'
         )
+    
+        cls.form = PostForm()
 
     def setUp(self):
         self.guest_client = Client()
         self.user = User.objects.create_user(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-        form_data = {
+        self.form_data = {
             'text': 'Данные из формы',
             'group': self.group.pk
         }
-        self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True,
-        )
+       
 
     def test_create_post(self):
         count_posts = Post.objects.count()
@@ -50,30 +56,33 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(Post.objects.count(), count_posts + 1)
         self.assertRedirects(response, reverse('posts:profile',
                              kwargs={'username': 'auth'}))
-        self.assertEqual(self.user.username, 'auth')
-        self.assertEqual(self.group.title, 'Заголовок для тестовой группы')
+
 
     def test_create_post_not_authorized(self):
         form_data = {
-            'text': 'Данные из формы',
-            'group': self.group.pk
+            'text': 'Текст',
+            'group': 'Группа'
         }
         self.guest_client.post(
             reverse('posts:post_create'),
             data=form_data,
             follow=True,
         )
-        self.assertTrue(Post.objects.filter(
-                        text='Данные из формы'
+        self.assertFalse(Post.objects.filter(
+                        text='Текст'
                         ).exists())
 
     def test_edit_post(self):
-        self.assertTrue(Post.objects.filter(
-                        text='Данные из формы',
-                        group=self.group.pk,
-                        author=self.user
-                        ).exists())
-        self.client.get(f'/posts/{self.group.pk}/edit/')
+        form_data = {
+            'text': 'Данные из формы',
+            'group': self.group.pk
+        }
+        self.authorized_client.post(
+            reverse('posts:post_create'),
+            data=form_data,
+            follow=True,
+        )
+        self.client.get('/posts/1/edit/')
         form_data = {
             'text': 'Измененный текст',
             'group': self.group.pk
@@ -91,9 +100,6 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(post_2.text, 'Измененный текст')
 
     def test_reddirect_guest_client(self):
-        self.post = Post.objects.create(text='Тестовый текст',
-                                        author=self.user,
-                                        group=self.group)
         form_data = {'text': 'Текст записанный в форму'}
         response = self.guest_client.post(
             reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
@@ -110,6 +116,7 @@ class PostCreateFormTests(TestCase):
         response = self.guest_client.post(reverse('posts:post_create'),
                                           data=form_data,
                                           follow=True)
+        
         self.assertEqual(response.status_code, HTTPStatus.OK)
         error_name2 = 'Поcт добавлен в базу данных по ошибке'
         self.assertNotEqual(Post.objects.count(),

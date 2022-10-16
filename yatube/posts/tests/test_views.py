@@ -57,21 +57,25 @@ class PostTests(TestCase):
         self.assertTemplateUsed(response, 'posts/create_post.html')
 
     def test_index_correct_context(self):
-        self.authorized_client.get(reverse
-                                   ('posts:index')).context['page_obj'][0]
-        self.assertEqual(self.postTwo.text,
-                         'Тестовая запись 2 для создания поста')
-        self.assertEqual(self.postTwo.author.username, 'auth')
-        self.assertEqual(self.postTwo.group.title,
-                         'Заголовок 2 для тестовой группы')
+        response = self.authorized_client.get(reverse('posts:index'))
+        first_object = response.context['page_obj'][0]
+        context_objects = {
+            first_object.author.username: self.post.author.username,
+            first_object.text :self.post.text ,
+            first_object.group.title : self.post.group.title,
+        }
+        for reverse_name, response_name in context_objects.items():
+            with self.subTest(reverse_name=reverse_name):
+                self.assertEqual(response_name, reverse_name)
 
     def test_group_correct_context(self):
-        self.authorized_client.get(reverse('posts:group_posts',
+        response =  self.authorized_client.get(reverse('posts:group_posts',
                                            kwargs={'slug': self.post.group.slug
-                                                   })).context['group']
+                                                   }))
+        first_object = response.context['page_obj'][0]
         self.assertEqual(self.post.group.title,
-                         'Заголовок для тестовой группы')
-        self.assertEqual(self.post.group.slug, 'slug')
+                          first_object.group.title)
+        self.assertEqual(self.post.group.slug, first_object.group.slug)
 
     def test_profile_correct_context(self):
         response = self.authorized_client.get(reverse('posts:profile',
@@ -81,7 +85,7 @@ class PostTests(TestCase):
         first_object = response.context['page_obj'][0]
         self.assertEqual(response.context['author'].username, f'{self.user}')
         self.assertEqual(first_object.text,
-                         'Тестовая запись 2 для создания поста')
+                         self.post.text)
 
     def test_post_detail_correct_context(self):
         response = self.authorized_client.get(reverse('posts:post_detail',
@@ -112,11 +116,11 @@ class PostTests(TestCase):
                 self.assertIsInstance(form_field, expected)
 
     def test_post_another_group(self):
-        self.authorized_client.get(reverse('posts:group_posts',
+        response = self.authorized_client.get(reverse('posts:group_posts',
                                            kwargs={'slug': 'slug'}
-                                           )).context['page_obj'][0]
-
-        self.assertTrue(self.postTwo.text, 'Заголовок 2 для тестовой группы')
+                                           ))
+        first_object = response.context['page_obj'][0]
+        self.assertTrue(self.postTwo.text, first_object.text )
 
 
 class PaginatorViewsTest(TestCase):
