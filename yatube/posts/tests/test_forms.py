@@ -91,6 +91,9 @@ class PostCreateFormTests(TestCase):
             reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
             data=form_data,
             follow=True)
+        obj = self.post
+        obj.refresh_from_db()
+        self.assertNotEqual(obj.text, form_data['text'])
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertRedirects(response,
                              f'/auth/login/?next=/posts/{self.post.id}/edit/')
