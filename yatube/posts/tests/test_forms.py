@@ -30,21 +30,21 @@ class PostCreateFormTests(TestCase):
         self.user = User.objects.get(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-        self.form_data = {
+
+    def test_create_post(self):
+        form_data = {
             'text': 'Данные из формы',
             'group': self.group.pk
         }
-
-    def test_create_post(self):
         count_posts = Post.objects.count()
         response = self.authorized_client.post(
             reverse('posts:post_create'),
-            data=self.form_data,
+            data=form_data,
             follow=True,
         )
         self.assertTrue(Post.objects.filter(
-                        text=self.form_data['text'],
-                        group=self.form_data['group'],
+                        text=form_data['text'],
+                        group=form_data['group'],
                         author=self.user
                         ).exists())
         self.assertEqual(Post.objects.count(), count_posts + 1)
@@ -67,64 +67,47 @@ class PostCreateFormTests(TestCase):
 
     def test_edit_post(self):
         form_data = {
-            'text': 'Данные из формы',
-            'group': self.group.pk
-        }
-        self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True,
-        )
-        self.client.get('/posts/1/edit/')
-        form_data = {
             'text': 'Измененный текст',
             'group': self.group.pk
         }
         response_edit = self.authorized_client.post(
             reverse('posts:post_edit',
                     kwargs={
-                        'post_id': self.group.pk
+                        'post_id': self.post.pk
                     }),
             data=form_data,
             follow=True,
         )
-        post_2 = Post.objects.get(id=self.group.id)
-        self.assertEqual(response_edit.status_code, 200)
-        self.assertEqual(post_2.text, 'Измененный текст')
+        post_2 = Post.objects.get(id=self.post.pk)
+        self.assertEqual(response_edit.status_code, HTTPStatus.OK)
+        self.assertEqual(post_2.text, form_data['text'])
+        self.assertEqual(post_2.group.pk, form_data['group'])
 
-    def test_reddirect_guest_client(self):
-        form_data = {'text': self.post.text,
-                     'group': self.group,
-                     'author': self.user}
+    def test_edit_post_not_authorized(self):
+        form_data = {'text': 'Новый текст',
+                     'group': self.group.pk,
+                     }
         response = self.guest_client.post(
             reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
             data=form_data,
             follow=True)
-        post = Post.objects.get(id=self.post.pk)
-        postToBeChecked = {'text': post.text,
-                           'group': post.group,
-                           'author': post.author}
-        self.assertDictEqual(form_data, postToBeChecked)
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual((self.post.text), form_data['text'])
-        self.assertEqual((self.post.author.username), 'auth')
-
         self.assertRedirects(response,
                              f'/auth/login/?next=/posts/{self.post.id}/edit/')
 
-    def test_no_edit_post(self):
+    def test_no_edit_post_not_author(self):
         posts_count = Post.objects.count()
-        form_data = {'text': self.post.text,
+        form_data = {'text': 'Новый текст',
                      'group': self.group,
-                     'author': self.user}
-        response = self.guest_client.post(reverse('posts:post_create'),
-                                          data=form_data,
-                                          follow=True)
+                     'author': 'Новый автор'}
+        response = self.authorized_client.post(reverse('posts:post_create'),
+                                               data=form_data,
+                                               follow=True)
         post = Post.objects.get(id=self.post.pk)
-        postToBeChecked = {'text': post.text,
-                           'group': post.group,
-                           'author': post.author}
-        self.assertDictEqual(form_data, postToBeChecked)
+        checked_post = {'text': post.text,
+                        'group': post.group,
+                        'author': post.author}
+        self.assertNotEqual(form_data, checked_post)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         error_name2 = 'Поcт добавлен в базу данных по ошибке'
         self.assertNotEqual(Post.objects.count(),
