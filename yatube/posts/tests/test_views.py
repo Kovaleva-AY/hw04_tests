@@ -1,5 +1,11 @@
+import shutil
+import tempfile
+
 from django import forms
+from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 from ..models import Group, Post
@@ -11,6 +17,20 @@ class PostTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        settings.MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR) 
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
         cls.user = User.objects.create(username='auth')
 
         cls.post = Post.objects.create(
@@ -18,14 +38,21 @@ class PostTests(TestCase):
             text='Тестовая запись для создания поста',
             group=Group.objects.create(
                 title='Заголовок для тестовой группы',
-                slug='slug'))
+                slug='slug'),
+            image=uploaded)
 
         cls.postTwo = Post.objects.create(
             author=cls.user,
             text='Тестовая запись 2 для создания поста',
             group=Group.objects.create(
                 title='Заголовок 2 для тестовой группы',
-                slug='slug2'))
+                slug='slug2'),
+                image=uploaded)
+    
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
 
     def setUp(self):
         self.guest_client = Client()
@@ -59,6 +86,8 @@ class PostTests(TestCase):
     def test_index_correct_context(self):
         response = self.authorized_client.get(reverse('posts:index'))
         first_object = response.context['page_obj'][1]
+        
+        
         context_objects = {
             first_object.author.username: self.post.author.username,
             first_object.text: self.post.text,
@@ -74,6 +103,8 @@ class PostTests(TestCase):
                                                       self.post.group.slug
                                                       }))
         first_object = response.context['page_obj'][0]
+        post_image_0 = Post.objects.first().image
+        self.assertEqual(post_image_0, self.post.image)
         self.assertEqual(self.post.group.title,
                          first_object.group.title)
         self.assertEqual(self.post.group.slug, first_object.group.slug)

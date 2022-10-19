@@ -64,8 +64,14 @@ class PostURLTests(TestCase):
                 self.assertTemplateUsed(response, template)
 
     def test_page_404(self):
-        response = self.guest_client.get('/unexisting_page/')
-        response = self.guest_client.get(f'/posts/{str(555)}/')
-        response = self.guest_client.get('/group/meow/')
-        response = self.guest_client.get('/profile/anton/')
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        url_names = [
+            '/unexisting_page/',
+            f'/posts/{str(555)}/',
+            '/group/meow/',
+            '/profile/anton/',
+        ]
+
+        for url in url_names:
+            with self.subTest(url=url):
+                response = self.guest_client.get(url)
+                self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)

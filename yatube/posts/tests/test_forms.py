@@ -1,13 +1,20 @@
+import shutil
+import tempfile
 from http import HTTPStatus
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from ..models import Group, Post
 from ..forms import PostForm
 from django.urls import reverse
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 User = get_user_model()
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -24,27 +31,33 @@ class PostCreateFormTests(TestCase):
             group=cls.group)
 
         cls.form = PostForm()
+    
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
+   
     def setUp(self):
         self.guest_client = Client()
         self.user = User.objects.get(username='auth')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-        self.form_data = {
+
+    def test_create_post(self):
+        form_data = {
             'text': 'Данные из формы',
             'group': self.group.pk
         }
-
-    def test_create_post(self):
         count_posts = Post.objects.count()
         response = self.authorized_client.post(
             reverse('posts:post_create'),
-            data=self.form_data,
+            data=form_data,
             follow=True,
         )
         self.assertTrue(Post.objects.filter(
-                        text=self.form_data['text'],
-                        group=self.form_data['group'],
+                        text=form_data['text'],
+                        group=form_data['group'],
                         author=self.user
                         ).exists())
         self.assertEqual(Post.objects.count(), count_posts + 1)
@@ -67,66 +80,92 @@ class PostCreateFormTests(TestCase):
 
     def test_edit_post(self):
         form_data = {
-            'text': 'Данные из формы',
-            'group': self.group.pk
-        }
-        self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True,
-        )
-        self.client.get('/posts/1/edit/')
-        form_data = {
             'text': 'Измененный текст',
             'group': self.group.pk
         }
         response_edit = self.authorized_client.post(
             reverse('posts:post_edit',
                     kwargs={
-                        'post_id': self.group.pk
+                        'post_id': self.post.pk
                     }),
             data=form_data,
             follow=True,
         )
-        post_2 = Post.objects.get(id=self.group.id)
-        self.assertEqual(response_edit.status_code, 200)
-        self.assertEqual(post_2.text, 'Измененный текст')
+        post_2 = Post.objects.get(id=self.post.pk)
+        self.assertEqual(response_edit.status_code, HTTPStatus.OK)
+        self.assertEqual(post_2.text, form_data['text'])
+        self.assertEqual(post_2.group.pk, form_data['group'])
 
-    def test_reddirect_guest_client(self):
-        form_data = {'text': self.post.text,
-                     'group': self.group,
-                     'author': self.user}
+    def test_edit_post_not_authorized(self):
+        form_data = {'text': 'Новый текст',
+                     'group': self.group.pk,
+                     }
         response = self.guest_client.post(
             reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
             data=form_data,
             follow=True)
-        post = Post.objects.get(id=self.post.pk)
-        postToBeChecked = {'text': post.text,
-                           'group': post.group,
-                           'author': post.author}
-        self.assertDictEqual(form_data, postToBeChecked)
+        obj = self.post
+        obj.refresh_from_db()
+        self.assertNotEqual(obj.text, form_data['text'])
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertEqual((self.post.text), form_data['text'])
-        self.assertEqual((self.post.author.username), 'auth')
-
         self.assertRedirects(response,
                              f'/auth/login/?next=/posts/{self.post.id}/edit/')
 
-    def test_no_edit_post(self):
+    def test_no_edit_post_not_author(self):
         posts_count = Post.objects.count()
-        form_data = {'text': self.post.text,
+        form_data = {'text': 'Новый текст',
                      'group': self.group,
-                     'author': self.user}
-        response = self.guest_client.post(reverse('posts:post_create'),
-                                          data=form_data,
-                                          follow=True)
+                     'author': 'Новый автор'}
+        response = self.authorized_client.post(reverse('posts:post_create'),
+                                               data=form_data,
+                                               follow=True)
         post = Post.objects.get(id=self.post.pk)
-        postToBeChecked = {'text': post.text,
-                           'group': post.group,
-                           'author': post.author}
-        self.assertDictEqual(form_data, postToBeChecked)
+        checked_post = {'text': post.text,
+                        'group': post.group,
+                        'author': post.author}
+        self.assertNotEqual(form_data, checked_post)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         error_name2 = 'Поcт добавлен в базу данных по ошибке'
         self.assertNotEqual(Post.objects.count(),
                             posts_count + 1,
                             error_name2)
+    
+    def test_create_post_with_picture(self):
+        posts_count = Post.objects.count()  
+        small_gif = (            
+             b'\x47\x49\x46\x38\x39\x61\x02\x00'
+             b'\x01\x00\x80\x00\x00\x00\x00\x00'
+             b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+             b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+             b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+             b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
+        form_data = {
+            'title': 'Тестовый заголовок',
+            'text': 'Тестовый текст',
+            'image': uploaded,
+        }
+        # Отправляем POST-запрос
+        response = self.authorized_client.post(
+            reverse('posts:post_create'),
+            data=form_data,
+            follow=True
+        )
+        # Проверяем, сработал ли редирект
+        self.assertRedirects(response, reverse('posts:profile',
+                             kwargs={'username':  f'{self.user.username}'}))
+        # Проверяем, увеличилось ли число постов
+        self.assertEqual(Post.objects.count(), posts_count+1)
+
+        # Проверяем, что создалась запись с заданным слагом
+        self.assertTrue(
+            Post.objects.filter(
+                text='Тестовый текст',
+                image='posts/small.gif'
+            ).exists()
+        ) 
